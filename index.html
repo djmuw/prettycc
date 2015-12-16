@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>Prettycc by djmuw</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Prettycc</h1>
+        <h2>A small C++ library for formatted stream output of standard library objects</h2>
+        <a href="https://github.com/djmuw/prettycc" class="button"><small>View project on</small> GitHub</a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h1>
+<a id="0-preface-and-wording" class="anchor" href="#0-preface-and-wording" aria-hidden="true"><span class="octicon octicon-link"></span></a>0. Preface and wording</h1>
+
+<p>A <strong>'decoration'</strong> in terms of this answer is a set of prefix-string, delimiter-string and a postfix-string.
+Where the prefix string is inserted into a stream before and the postfix string after the values of a container (see 2. Target containers).
+The delimiter string is inserted between the values of the respective container.</p>
+
+<p><em>Note: Actually, this answer does not address the question to 100% since the decoration is not strictly compile time constant because runtime checks are required to check whether a custom decoration has been applied to the current stream.</em>
+Nevertheless, I think it has some decent features.</p>
+
+<p><em>Note2: May have minor bugs since it is not yet well tested.</em></p>
+
+<h1>
+<a id="1-general-idea--usage" class="anchor" href="#1-general-idea--usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>1. General idea / usage</h1>
+
+<h3>
+<a id="zero-additional-code-required-for-usage" class="anchor" href="#zero-additional-code-required-for-usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Zero additional code required for usage</h3>
+
+<p>It is to be kept as easy as</p>
+
+<pre><code>#include &lt;vector&gt;
+#include "pretty.h"
+
+int main()
+{
+  std::cout &lt;&lt; std::vector&lt;int&gt;{1,2,3,4,5}; // prints 1, 2, 3, 4, 5
+  return 0;
+}
+</code></pre>
+
+<h3>
+<a id="easy-customization-" class="anchor" href="#easy-customization-" aria-hidden="true"><span class="octicon octicon-link"></span></a>Easy customization ...</h3>
+
+<p>... with respect to specific stream object</p>
+
+<pre><code>#include &lt;vector&gt;
+#include "pretty.h"
+
+int main()
+{
+  // set decoration for std::vector&lt;int&gt; for cout object
+  std::cout &lt;&lt; pretty::decoration&lt;std::vector&lt;int&gt;&gt;("(", ",", ")");
+  std::cout &lt;&lt; std::vector&lt;int&gt;{1,2,3,4,5}; // prints (1,2,3,4,5)
+  return 0;
+}
+</code></pre>
+
+<p>or with respect to all streams:</p>
+
+<pre><code>#include &lt;vector&gt;
+#include "pretty.h"
+
+// set decoration for std::vector&lt;int&gt; for all ostream objects
+PRETTY_DEFAULT_DECORATION(std::vector&lt;int&gt;, "{", ", ", "}")
+
+int main()
+{
+  std::cout &lt;&lt; std::vector&lt;int&gt;{1,2,3,4,5}; // prints {1, 2, 3, 4, 5}
+  std::cout &lt;&lt; pretty::decoration&lt;std::vector&lt;int&gt;&gt;("(", ",", ")");
+  std::cout &lt;&lt; std::vector&lt;int&gt;{1,2,3,4,5}; // prints (1,2,3,4,5)
+  return 0;
+}
+</code></pre>
+
+<h3>
+<a id="rough-description" class="anchor" href="#rough-description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Rough description</h3>
+
+<ul>
+<li>The code includes a class template providing a default decoration for any type</li>
+<li>which can be specialized to change the default decoration for (a) certain type(s) and it is</li>
+<li>using the private storage provided by <code>ios_base</code> using <code>xalloc</code>/<code>pword</code> in order to save a pointer to a <code>pretty::decor</code> object specifically decorating a certain type on a certain stream.</li>
+</ul>
+
+<p>If no <code>pretty::decor&lt;T&gt;</code> object for this stream has been set up explicitly <code>pretty::defaulted&lt;T, charT, chartraitT&gt;::decoration()</code> is called to obtain the default decoration for the given type.
+The class <code>pretty::defaulted</code> is to be specialized to customize default decorations.</p>
+
+<h1>
+<a id="2-target-objects--containers" class="anchor" href="#2-target-objects--containers" aria-hidden="true"><span class="octicon octicon-link"></span></a>2. Target objects / containers</h1>
+
+<p>Target objects <code>obj</code> for the <em>'pretty decoration'</em> of this code are objects having either</p>
+
+<ul>
+<li>overloads <code>std::begin</code> and <code>std::end</code> defined (includes C-Style arrays),</li>
+<li>having <code>begin(obj)</code> and <code>end(obj)</code> available via ADL,</li>
+<li>are of type <code>std::tuple</code> </li>
+<li>or of type <code>std::pair</code>.</li>
+</ul>
+
+<p>The code includes a trait for identification of classes with range features (<code>begin</code>/<code>end</code>).
+(There's no check included, whether <code>begin(obj) == end(obj)</code> is a valid expression, though.)</p>
+
+<p>The code provides <code>operator&lt;&lt;</code>s in the global namespace that only apply for classes not having a more specialized version of <code>operator&lt;&lt;</code> available.
+Therefore, in example <code>std::string</code> is not printed using the operator in this code although having a valid <code>begin</code>/<code>end</code> pair.</p>
+
+<h1>
+<a id="3-utilization-and-customization" class="anchor" href="#3-utilization-and-customization" aria-hidden="true"><span class="octicon octicon-link"></span></a>3. Utilization and customization</h1>
+
+<p>Decorations can be imposed seperately for every type (except different <code>tuple</code>s) and stream (not stream type!).
+(I.e. a <code>std::vector&lt;int&gt;</code> can have a different decorations for different stream objects.)</p>
+
+<h2>
+<a id="a-default-decoration" class="anchor" href="#a-default-decoration" aria-hidden="true"><span class="octicon octicon-link"></span></a>A) Default decoration</h2>
+
+<p>The default prefix is <code>""</code> (nothing) as is the default postfix, while the default delimiter is <code>", "</code> (comma+space).</p>
+
+<h2>
+<a id="b-customized-default-decoration-of-a-type-by-specializing-the-prettydefaulted-class-template" class="anchor" href="#b-customized-default-decoration-of-a-type-by-specializing-the-prettydefaulted-class-template" aria-hidden="true"><span class="octicon octicon-link"></span></a>B) Customized default decoration of a type by specializing the <code>pretty::defaulted</code> class template</h2>
+
+<p>The <code>struct defaulted</code> has a static member function <code>decoration()</code> returning a <code>decor</code> object which includes the default values for the given type.</p>
+
+<h3>
+<a id="example-using-array" class="anchor" href="#example-using-array" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example using array:</h3>
+
+<p>Cutomize default array printing:</p>
+
+<pre><code>namespace pretty
+{
+  template&lt;class T, std::size_t N&gt;
+  struct defaulted&lt;T[N]&gt;
+  {
+    static decor&lt;T[N]&gt; decoration()
+    {
+      return{ { "(" }, { ":" }, { ")" } };
+    }
+  };
+}
+</code></pre>
+
+<p>Print an arry array:</p>
+
+<pre><code>float e[5] = { 3.4f, 4.3f, 5.2f, 1.1f, 22.2f };
+std::cout &lt;&lt; e &lt;&lt; '\n'; // prints (3.4:4.3:5.2:1.1:22.2)
+</code></pre>
+
+<h3>
+<a id="using-the-pretty_default_decorationtype-prefix-delim-postfix--macro-for-char-streams" class="anchor" href="#using-the-pretty_default_decorationtype-prefix-delim-postfix--macro-for-char-streams" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using the <code>PRETTY_DEFAULT_DECORATION(TYPE, PREFIX, DELIM, POSTFIX, ...)</code> macro for <code>char</code> streams</h3>
+
+<p>The macro expands to</p>
+
+<pre><code>namespace pretty { 
+  template&lt; __VA_ARGS__ &gt;
+  struct defaulted&lt; TYPE &gt; {
+    static decor&lt; TYPE &gt; decoration() {
+      return { PREFIX, DELIM, POSTFIX };
+    } 
+  }; 
+} 
+</code></pre>
+
+<p>enabling the above partial specialization to be rewritten to</p>
+
+<pre><code>PRETTY_DEFAULT_DECORATION(T[N], "", ";", "", class T, std::size_t N)
+</code></pre>
+
+<p>or inserting a full specialization like</p>
+
+<pre><code>PRETTY_DEFAULT_DECORATION(std::vector&lt;int&gt;, "(", ", ", ")")
+</code></pre>
+
+<p>Another macro for <code>wchar_t</code> streams is included: <code>PRETTY_DEFAULT_WDECORATION</code>.</p>
+
+<h2>
+<a id="c-impose-decoration-on-streams" class="anchor" href="#c-impose-decoration-on-streams" aria-hidden="true"><span class="octicon octicon-link"></span></a>C) Impose decoration on streams</h2>
+
+<p>The function <code>pretty::decoration</code> is used to impose a decoration on a certain stream.
+There are overloads taking either </p>
+
+<ul>
+<li>one string argument being the delimiter (adopting prefix and postfix from the defaulted class)</li>
+<li>or three string arguments assembling the complete decoration</li>
+</ul>
+
+<h3>
+<a id="complete-decoration-for-given-type-and-stream" class="anchor" href="#complete-decoration-for-given-type-and-stream" aria-hidden="true"><span class="octicon octicon-link"></span></a>Complete decoration for given type and stream</h3>
+
+<pre><code>float e[3] = { 3.4f, 4.3f, 5.2f };
+std::stringstream u;
+// add { ; } decoration to u
+u &lt;&lt; pretty::decoration&lt;float[3]&gt;("{", "; ", "}");
+
+// use { ; } decoration
+u &lt;&lt; e &lt;&lt; '\n'; // prints {3.4; 4.3; 5.2}
+
+// uses decoration returned by defaulted&lt;float[3]&gt;::decoration()
+std::cout &lt;&lt; e; // prints 3.4, 4.3, 5.2
+</code></pre>
+
+<h3>
+<a id="customization-of-delimiter-for-given-stream" class="anchor" href="#customization-of-delimiter-for-given-stream" aria-hidden="true"><span class="octicon octicon-link"></span></a>Customization of delimiter for given stream</h3>
+
+<pre><code>PRETTY_DEFAULT_DECORATION(float[3], "{{{", ",", "}}}")
+
+std::stringstream v;
+v &lt;&lt; e; // prints {{{3.4,4.3,5.2}}}
+
+v &lt;&lt; pretty::decoration&lt;float[3]&gt;(":");
+v &lt;&lt; e; // prints {{{3.4:4.3:5.2}}}
+
+v &lt;&lt; pretty::decoration&lt;float[3]&gt;("((", "=", "))");
+v &lt;&lt; e; // prints ((3.4=4.3=5.2))
+</code></pre>
+
+<h1>
+<a id="4-special-handling-of-stdtuple" class="anchor" href="#4-special-handling-of-stdtuple" aria-hidden="true"><span class="octicon octicon-link"></span></a>4. Special handling of <code>std::tuple</code>
+</h1>
+
+<p>Instead of allowing a specialization for every possible tuple type, this code applies any decoration available for <code>std::tuple&lt;void*&gt;</code> to all kind of <code>std::tuple&lt;...&gt;</code>s.</p>
+
+<h1>
+<a id="5-remove-custom-decoration-from-stream" class="anchor" href="#5-remove-custom-decoration-from-stream" aria-hidden="true"><span class="octicon octicon-link"></span></a>5. Remove custom decoration from stream</h1>
+
+<p>To go back to the defaulted decoration for a given type use <code>pretty::clear</code> function template on the stream <code>s</code>.</p>
+
+<pre><code>s &lt;&lt; pretty::clear&lt;std::vector&lt;int&gt;&gt;();
+</code></pre>
+
+<h1>
+<a id="5-further-examples" class="anchor" href="#5-further-examples" aria-hidden="true"><span class="octicon octicon-link"></span></a>5. Further examples</h1>
+
+<p>Printing "matrix-like" with newline delimiter</p>
+
+<pre><code>std::vector&lt;std::vector&lt;int&gt;&gt; m{ {1,2,3}, {4,5,6}, {7,8,9} };
+std::cout &lt;&lt; pretty::decoration&lt;std::vector&lt;std::vector&lt;int&gt;&gt;&gt;("\n");
+std::cout &lt;&lt; m;
+</code></pre>
+
+<p>Prints</p>
+
+<pre><code>1, 2, 3
+4, 5, 6
+7, 8, 9
+</code></pre>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/djmuw/prettycc/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/djmuw/prettycc/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/djmuw/prettycc"></a> is maintained by <a href="https://github.com/djmuw">djmuw</a>.</p>
+
+          <p>This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
+    </div>
+
+  
+  </body>
+</html>
