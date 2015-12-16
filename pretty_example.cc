@@ -1,47 +1,14 @@
 #include <iostream>
 #include <vector>
-#include <unordered_map>
 #include <map>
-#include <set>
 #include <array>
-#include <tuple>
-#include <valarray>
-#include <utility>
-#include <string>
 #include <sstream>
-#include <algorithm>
-#include <iterator>
-#include <random>
 
 #include "pretty.hpp"
 
-namespace
-{
-  std::string random_string(std::size_t length)
-  {
-    static const std::string alphanums =
-      "0123456789"
-      "abcdefghijklmnopqrstuvwxyz"
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    std::mt19937 rg(std::random_device{}());
-    std::uniform_int_distribution<> pick(0, alphanums.size() - 1);
-
-    std::string s;
-    s.reserve(length);
-    while (length--)
-    {
-      s += alphanums[std::uniform_int_distribution<unsigned>
-      {0, alphanums.size() - 1}(rg)];
-    }
-
-    return s;
-  }
-}
-
 PRETTY_DEFAULT_DECORATION(std::vector<int>, "[[", "||", ">")
 
-int main(int argc, char * argv[])
+int main()
 {
 
   // Global default decoration
@@ -90,6 +57,8 @@ int main(int argc, char * argv[])
     std::cout << "stringstream b << map<int, string>: " << b.str() << '\n' << '\n';
   }
 
+  // TODO: add more ;)
 
-  std::system("pause");
+  return 0;
+
 }
